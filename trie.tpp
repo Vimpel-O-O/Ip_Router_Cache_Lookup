@@ -1,6 +1,5 @@
 #include "trie.h"
 #include <stdexcept>
-using namespace std;
 
 template <typename Type>
 void Trie<Type>::insert(Type address, int len, int value)
@@ -49,7 +48,7 @@ void Trie<Type>::remove(Type address, int len)
         {
             if (curr->left == nullptr)
             {
-                throw runtime_error("address was not found on remove");
+                throw std::runtime_error("address was not found on remove");
             }
             curr = curr->left;
         }
@@ -57,7 +56,7 @@ void Trie<Type>::remove(Type address, int len)
         {
             if (curr->right == nullptr)
             {
-                throw runtime_error("address was not found on remove");
+                throw std::runtime_error("address was not found on remove");
             }
             curr = curr->right;
         }
