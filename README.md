@@ -16,11 +16,11 @@ Doing LPM for every packet is slow, but real traffic repeats a lot. So I put a
 **cache** in front of the table: the first time I look up an IP I do the slow LPM and
 remember the answer; every time after that I just read it back instantly.
 
-The interesting problem: when a route is added or removed, some cached answers become
-**wrong (stale)**. So on any route change I throw away only the cache entries that the
+Also, when a route is added or removed, some cached answers become
+wrong (stale). So on any route change I throw away only the cache entries that the
 change could affect.
 
-## How it works (example)
+## How it works
 
 Routes:
 
@@ -37,36 +37,31 @@ Look up `192.168.1.5`:
 Now remove `192.168.1.0/24`. The cached answer for `192.168.1.5` is now stale, so it
 gets invalidated. The next lookup falls back to `/16` → **port 4**.
 
-## Components
+## Implementation Architecture
 
-```
-RouteCache  ->  RoutingTable  ->  Trie
- (hashmap)       (wrapper)        (does LPM)
-```
+<img width="2924" height="2980" alt="image" src="https://github.com/user-attachments/assets/4fbfcd02-2478-4c97-98dd-aad9a8eac112" />
 
 - **Trie** ([trie.h](trie.h) / [trie.tpp](trie.tpp))
   A bit-by-bit binary tree. Walking the address bits down the tree and remembering the
   deepest marked node gives the longest prefix match.
 - **RoutingTable** ([routing_table.h](routing_table.h) / [routing_table.tpp](routing_table.tpp))
-  A thin wrapper over the trie. Talks in `Prefix{address, len}` and calls
+  A thin wrapper over the trie which uses `Prefix{address, len}` and calls
   `add_route` / `remove_route` / `lookup`.
 - **RouteCache** ([route_cache.h](route_cache.h) / [route_cache.tpp](route_cache.tpp))
-  An `unordered_map<IP, port>` in front of the table. Checks the cache first, fills on
+  Uses an `unordered_map<IP, port>` in front of the table. Checks the cache first, fills on
   a miss, and on route changes calls `invalidate()` to drop only the entries under the
   changed prefix. Also tracks hit rate.
 
-Everything is a template on the address type, so the same code runs for IPv4
+Everything is a template on the address type, and a custom hash was implemented for 128-bit IP, so the same code runs for IPv4
 (`uint32_t`) and IPv6 (`unsigned __int128`).
 
-## The demo ([main.cpp](main.cpp))
+## Cached vs Uncached Benchmark Results ([main.cpp](main.cpp))
 
-`main.cpp` runs:
-
-1. **Correctness** — checks LPM gives the expected ports.
-2. **Performance** — 1,000,000 lookups with ~90% locality, comparing cached vs. raw
-   trie speed and printing the hit rate and speedup.
-3. **Consistency** — removes a route and shows the cached answer correctly changes.
-4. Repeats the same three tests for **IPv6**.
+1. Total Lookups: 1000004
+2. Cache Hit Rate: 90.0053 %
+3. With Cache: 14.2342 ms
+4. Without Cache: 21.4246 ms
+5. Speedup: 1.50515x
 
 ## Build & run
 
@@ -74,10 +69,3 @@ Everything is a template on the address type, so the same code runs for IPv4
 g++ -std=c++17 -O2 main.cpp -o router_sim
 ./router_sim
 ```
-
-## Notes / possible next steps
-
-- `clear()` exists as a simple "flush everything" fallback; the cache uses selective
-  `invalidate()` instead.
-- Routes store a single `int` port number.
-- Could add: compressed trie, more route metadata (next-hop), latency percentiles.
