@@ -35,19 +35,21 @@ void RouteCache<Type>::remove_route(typename RoutingTable<Type>::Prefix prefix)
 template <typename Type>
 void RouteCache<Type>::invalidate(Type address, int len)
 {
+    int bits = sizeof(Type) * 8;
+
     // Build Mask
     Type mask;
     if (len == 0)
     {
         mask = 0;
     }
-    else if (len >= 32)
+    else if (len >= bits)
     {
-        mask = 0xFFFFFFFF;
+        mask = ~(Type)0;
     }
     else
     {
-        mask = 0xFFFFFFFFu << (32 - len);
+        mask = ~(Type)0 << (bits - len);
     }
 
     // Prefix's Network
